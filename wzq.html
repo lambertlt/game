@@ -123,7 +123,7 @@
             colorPiece: 0,// 默认黑手为先 代号 Boolean 为 false
             clickX: 0, // 鼠标点击的相对棋盘左侧x坐标
             clickY: 0, // 鼠标点击的相对棋盘顶部y坐标
-            reBackArr: [], // 记录瞎子下棋位置
+            reBackArr: [], // 存放悔棋的最近三次下棋位置
             number: 0, // 下了多少步棋
         }, mounted() {
             this.drawBg()
@@ -139,7 +139,7 @@
                     this.clearChess(arr[index].x, arr[index].y, 11)
                     this.resultArray[arr[index].x][arr[index].y] = null
                     arr.splice(index, 1)
-                    this.colorPiece = !this.colorPiece
+                    this.colorPiece = Number(!this.colorPiece)
                 } else
                     alert("最多悔棋三步")
             },
@@ -166,6 +166,7 @@
             },
             // 通过提取出来的点4个角度字符串判断谁赢了
             isVictory(str) {
+                console.log(str)
                 if (str.indexOf('11111') + 1) {
                     alert("白子获胜")
                     return 1 // 1代表已经在一个方向已经赢了不需要多次弹出
@@ -228,7 +229,6 @@
             },
             // 清除棋子 //(x,y)为要清除的圆的圆心，r为半径，cxt为context
             clearChess(x, y, r) {    //(x,y)为要清除的圆的圆心，r为半径，cxt为context
-                console.log("clearChess: ", x, y, r)
                 ctx.beginPath()
                 ctx.globalCompositeOperation = "source-over";
                 ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), r, 0, 2 * Math.PI);
@@ -252,7 +252,6 @@
                     color = "white"
                 else
                     color = "black"
-                console.log(color)
                 ctx.beginPath()
                 ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), 10, 0, 2 * Math.PI)
                 ctx.fillStyle = color
