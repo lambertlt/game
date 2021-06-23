@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>五子棋</title>
+    <style>
+        body {
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        body, ul, li, a, span, input, button, h3, p {
+            box-sizing: border-box;
+            /*设置元素的高宽是包括padding和margin的结果*/
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .tools {
+            width: 450px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolsButton {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .toolsButton button {
+            width: 80px;
+            margin: 20px;
+        }
+
+        .toolsButton span {
+            width: 100px;
+        }
+
+        .toolsBgColor {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .colorSpan {
+            padding: 10px;
+        }
+
+        .colorSpan span {
+            font-size: 14px;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
+            margin: 10px;
+            padding: 2px 5px;
+            background-color: #f5f5f5;
+        }
+
+        .toolsData {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<div class="container" id="app">
+    <h1 style="text-align: center">五子棋</h1>
+    <canvas id="myCanvas" @click.stop="handleClick($event)" width="450" height="450"
+            style="">
+    </canvas>
+    <div class="tools">
+        <div class="toolsButton">
+            <button @click="rePlay()">重玩</button>
+            <button @click="reBack()">悔棋</button>
+        </div>
+        <div class="toolsData">
+            <span>当前步数：{{number}}</span>
+            <span style="font-size: 12px;width: 170px;margin:0;">时间：{{date}}</span>
+        </div>
+        <div class="toolsBgColor">
+            <h3>设置背景色
+                <span style="font-size: 12px;color: #0d1318;font-weight: lighter;">（设置完后下局生效）</span>
+            </h3>
+            <div class="colorSpan">
+                <span @click="bgColorIndex=0">灰色</span>
+                <span @click="bgColorIndex=1">绿色</span>
+                <span @click="bgColorIndex=2">蓝色</span>
+            </div>
+        </div>
+        <!--        {{resultArray}}-->
+        <!--   这个可以 画出 二维数组 内具体的数据     -->
+        <!--        <div v-for="(i) in resultArray">-->
+        <!--            <span v-for="(t,index) in i">-->
+        <!--                {{t == null ? "-" : t}}-->
+        <!--            </span>-->
+        <!--        </div>-->
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<script>
+    var ctx
+    var app = new Vue({
+        el: '#app',
+        data: {
+            date: new Date().toLocaleString(),
+            resultArray: new Array(15).fill(null).map(() => new Array(15).fill(null)), // 初始化棋盘为二维数组
+            ruler: [], // 用来存储棋盘区间尺子
+            bgColor: ["#f5f5f5", "green", "blue"], // 棋盘背景颜色
+            bgColorIndex: 0, // 当前选择的颜色
+            colorPiece: 0,// 默认黑手为先 代号 Boolean 为 false
+            clickX: 0, // 鼠标点击的相对棋盘左侧x坐标
+            clickY: 0, // 鼠标点击的相对棋盘顶部y坐标
+            reBackArr: [], // 记录瞎子下棋位置
+            number: 0, // 下了多少步棋
+        }, mounted() {
+            this.drawBg()
+            this.restoreChessboard()
+            this.nowDate() // 更新时间
+        }, methods: {
+            // 悔棋
+            reBack() {
+                let arr = this.reBackArr
+                let len = arr.length
+                if (len > 0) {
+                    let index = Math.round(len - 1)
+                    this.clearChess(arr[index].x, arr[index].y, 11)
+                    this.resultArray[arr[index].x][arr[index].y] = null
+                    arr.splice(index, 1)
+                    this.colorPiece = !this.colorPiece
+                } else
+                    alert("最多悔棋三步")
+            },
+            // 重玩
+            rePlay() {
+                // let c = document.getElementById("myCanvas")
+                // c.height = c.height
+                this.colorPiece = 0
+                this.drawBg()
+                this.resultArray = new Array(15).fill(null).map(() => new Array(15).fill(null))
+                this.reBackArr = []
+                this.number = 0
+            },
+            // 更新时间
+            nowDate() {
+                this.date = new Date().toLocaleString()
+                setTimeout(this.nowDate, 1000)
+            },
+            // 初始化棋盘
+            restoreChessboard() {
+                for (let i = 0; i < 15; i++) {
+                    this.ruler.push({min: Math.round(5 + i * 30), max: Math.round(30 + i * 30 - 5)})
+                }
+            },
+            // 通过提取出来的点4个角度字符串判断谁赢了
+            isVictory(str) {
+                if (str.indexOf('11111') + 1) {
+                    alert("白子获胜")
+                    return 1 // 1代表已经在一个方向已经赢了不需要多次弹出
+                }
+                if (str.indexOf('00000') + 1) {
+                    alert("黑子获胜")
+                    return 1
+                }
+            },
+            // 获取每个角度点的数组
+            getPointString(x, y) {
+                if (this.number <= 8)
+                    return
+                let rs = this.resultArray
+                let s = ""
+                let flag = 0
+                let newRs = rs.map((col, i) => {
+                    return rs.map((row) => {
+                        return row[i];
+                    })
+                });
+                // 横向判断
+                s = ""
+                for (let i = 0; i < 15; i++) {
+                    s = s + rs[x][i]
+                }
+                flag = this.isVictory(s)
+                if (flag)
+                    return
+                // 纵向判断
+                s = ""
+                for (let i = 0; i < 15; i++) {
+                    s = s + rs[i][y]
+                }
+                flag = this.isVictory(s)
+                if (flag)
+                    return
+                // 斜线判断 思路先计算出左下角第一个再遍历出整条斜线的值到字符串s
+                s = ""
+                if (Math.round(x + y) < 14) // 左上角
+                    for (let i = 0; i < x + y + 1; i++)// x+y+1为当前斜线的总棋子数，也就是一整个斜线
+                        s = s + rs[Math.round(x + y - i)][i]
+                else if (Math.round(x + y) >= 14) // 右下角
+                    for (let i = 0; i < 28 - x - y + 1; i++)
+                        s = s + rs[14 - i][Math.round(y - 14 + x + i)]
+                flag = this.isVictory(s)
+                if (flag)
+                    return
+                // 反斜线判断 思路先计算右下角第一个再遍历出整条反斜线的值到字符串s
+                s = ""
+                if (x > y) // 左下角
+                    for (let i = 0; i < Math.round(14 - x + y + 1); i++)
+                        s = s + rs[14 - i][Math.round(14 - x + y - i)]
+                else if (x <= y) // 右上角
+                    for (let i = 0; i < Math.round(14 - y + x + 1); i++)
+                        s = s + rs[Math.round(14 - y + x - i)][14 - i]
+                flag = this.isVictory(s)
+                if (flag)
+                    return
+            },
+            // 清除棋子 //(x,y)为要清除的圆的圆心，r为半径，cxt为context
+            clearChess(x, y, r) {    //(x,y)为要清除的圆的圆心，r为半径，cxt为context
+                console.log("clearChess: ", x, y, r)
+                ctx.beginPath()
+                ctx.globalCompositeOperation = "source-over";
+                ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), r, 0, 2 * Math.PI);
+                ctx.fillStyle = this.bgColor[this.bgColorIndex];
+                ctx.fill();
+                ctx.beginPath()
+                ctx.strokeStyle = "#D6D1D1"
+                ctx.moveTo(Math.round(15 + 30 * y), Math.round(15 + 30 * x - 11))
+                ctx.lineTo(Math.round(15 + 30 * y), Math.round(15 + 30 * x + 11))
+                ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
+                ctx.beginPath()
+                ctx.strokeStyle = "#D6D1D1"
+                ctx.moveTo(Math.round(15 + 30 * y - 11), Math.round(15 + 30 * x))
+                ctx.lineTo(Math.round(15 + 30 * y + 11), Math.round(15 + 30 * x))
+                ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
+            },
+            // 绘制棋子
+            drawChess(x, y) {
+                let color = ''
+                if (this.colorPiece)
+                    color = "white"
+                else
+                    color = "black"
+                console.log(color)
+                ctx.beginPath()
+                ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), 10, 0, 2 * Math.PI)
+                ctx.fillStyle = color
+                ctx.fill() // 填充路径
+                ctx.stroke() // 绘制路径 默认黑色线条
+                this.number++
+                this.getPointString(x, y)
+            },
+            // 获取点击坐标
+            handleClick(event) {
+                // $event是指当前触发的是什么事件（鼠标事件，键盘事件等）
+                // $event.target则指的是事件触发的目标，即哪一个元素触发了事件，这将直接获取该dom元素
+                // x 为当前鼠标点击坐标，event.target.offsetTop为当前棋盘距离窗口左侧距离，相减得出 鼠标点击位置相对棋盘的x、y坐标
+                this.clickX = Math.round(event.x - event.target.offsetLeft)
+                this.clickY = Math.round(event.y - event.target.offsetTop)
+                let x, y
+                this.ruler.forEach((i, index) => {
+                    if (i.min < this.clickX && this.clickX < i.max) {
+                        y = index // 这是第几列
+                    }
+                    if (i.min < this.clickY && this.clickY < i.max) {
+                        x = index // 这是第几行
+                    }
+                })
+                if (x == undefined || y == undefined) {
+                    console.log("超出区域请重新下棋！")
+                    return
+                }
+                if (this.resultArray[x][y] != null)
+                    return
+                this.resultArray[x][y] = this.colorPiece
+                this.drawChess(x, y)
+                this.reBackArr.push({x: x, y: y, colorPiece: this.colorPiece})
+                let length = this.reBackArr.length
+                if (length > 3) {
+                    this.reBackArr.splice(0, length - 3)
+                }
+                this.colorPiece = Number(!this.colorPiece) // 修改执子者
+            },
+            // 绘制棋盘
+            drawBg() {
+                let c = document.getElementById("myCanvas")
+                ctx = c.getContext("2d")
+                ctx.beginPath()
+                ctx.fillStyle = this.bgColor[this.bgColorIndex]
+                ctx.fillRect(0, 0, 450, 450)
+                let t = 15
+                for (let i = 0; i < 15; i++) {
+                    ctx.beginPath()
+                    ctx.strokeStyle = "#D6D1D1"
+                    ctx.moveTo(15, t + 30 * i)
+                    ctx.lineTo(435, t + 30 * i)
+                    ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
+                    ctx.moveTo(t + 30 * i, 15)
+                    ctx.lineTo(t + 30 * i, 435)
+                    ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
+                }
+            }
+        }
+    })
+</script>
+<body>
+</body>
+</html>
