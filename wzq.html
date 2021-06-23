@@ -43,7 +43,7 @@
 
         .toolsButton button {
             width: 80px;
-            margin: 20px;
+            margin: 10px;
         }
 
         .toolsButton span {
@@ -314,10 +314,10 @@
                     ctx.beginPath()
                     ctx.strokeStyle = "#D6D1D1"
                     ctx.moveTo(this.space, this.space + this.space * i)
-                    ctx.lineTo(c.width - this.space, this.space + this.space * i)
+                    ctx.lineTo(this.space * t, this.space + this.space * i)
                     ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
                     ctx.moveTo(this.space + this.space * i, this.space)
-                    ctx.lineTo(this.space + this.space * i, c.height - this.space)
+                    ctx.lineTo(this.space + this.space * i, this.space * t)
                     ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
                 }
             }
