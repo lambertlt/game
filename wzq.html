@@ -12,7 +12,7 @@
             height: 100vh;
         }
 
-        body, ul, li, a, span, input, button, h3, p {
+        body, div, ul, li, a, span, input, button, h3, p {
             box-sizing: border-box;
             /*设置元素的高宽是包括padding和margin的结果*/
             padding: 0;
@@ -31,6 +31,7 @@
             width: 450px;
             display: flex;
             flex-direction: column;
+            overflow: auto;
         }
 
         .toolsButton {
@@ -78,8 +79,7 @@
 </head>
 <div class="container" id="app">
     <h1 style="text-align: center">五子棋</h1>
-    <canvas id="myCanvas" @click.stop="handleClick($event)" width="450" height="450"
-            style="">
+    <canvas id="myCanvas" @click.stop="handleClick($event)">
     </canvas>
     <div class="tools">
         <div class="toolsButton">
@@ -118,6 +118,7 @@
             date: new Date().toLocaleString(),
             resultArray: new Array(15).fill(null).map(() => new Array(15).fill(null)), // 初始化棋盘为二维数组
             ruler: [], // 用来存储棋盘区间尺子
+            rulerSpace: document.body.clientWidth > 460 ? 13 : document.body.clientWidth > 380 ? 11 : 9, // 尺子的容差空间
             bgColor: ["#f5f5f5", "green", "blue"], // 棋盘背景颜色
             bgColorIndex: 0, // 当前选择的颜色
             colorPiece: 0,// 默认黑手为先 代号 Boolean 为 false
@@ -125,6 +126,10 @@
             clickY: 0, // 鼠标点击的相对棋盘顶部y坐标
             reBackArr: [], // 存放悔棋的最近三次下棋位置
             number: 0, // 下了多少步棋
+            clientWidth: document.body.clientWidth, // 可使用宽度
+            clientHeight: document.body.clientHeight, // 可使用高度
+            space: document.body.clientWidth > 460 ? 30 : document.body.clientWidth > 380 ? 25 : 20, // 棋盘行间距
+            chessSize: document.body.clientWidth > 460 ? 10 : document.body.clientWidth > 380 ? 8 : 5, // 棋子大小
         }, mounted() {
             this.drawBg()
             this.restoreChessboard()
@@ -161,12 +166,14 @@
             // 初始化棋盘
             restoreChessboard() {
                 for (let i = 0; i < 15; i++) {
-                    this.ruler.push({min: Math.round(5 + i * 30), max: Math.round(30 + i * 30 - 5)})
+                    this.ruler.push({
+                        min: Math.round(this.space + i * this.space - this.rulerSpace),
+                        max: Math.round(this.space + i * this.space + this.rulerSpace)
+                    })
                 }
             },
             // 通过提取出来的点4个角度字符串判断谁赢了
             isVictory(str) {
-                console.log(str)
                 if (str.indexOf('11111') + 1) {
                     alert("白子获胜")
                     return 1 // 1代表已经在一个方向已经赢了不需要多次弹出
@@ -231,18 +238,18 @@
             clearChess(x, y, r) {    //(x,y)为要清除的圆的圆心，r为半径，cxt为context
                 ctx.beginPath()
                 ctx.globalCompositeOperation = "source-over";
-                ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), r, 0, 2 * Math.PI);
+                ctx.arc(Math.round(this.space + this.space * y), Math.round(this.space + this.space * x), r, 0, 2 * Math.PI);
                 ctx.fillStyle = this.bgColor[this.bgColorIndex];
                 ctx.fill();
                 ctx.beginPath()
                 ctx.strokeStyle = "#D6D1D1"
-                ctx.moveTo(Math.round(15 + 30 * y), Math.round(15 + 30 * x - 11))
-                ctx.lineTo(Math.round(15 + 30 * y), Math.round(15 + 30 * x + 11))
+                ctx.moveTo(Math.round(this.space + this.space * y), Math.round(this.space + this.space * x - 11))
+                ctx.lineTo(Math.round(this.space + this.space * y), Math.round(this.space + this.space * x + 11))
                 ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
                 ctx.beginPath()
                 ctx.strokeStyle = "#D6D1D1"
-                ctx.moveTo(Math.round(15 + 30 * y - 11), Math.round(15 + 30 * x))
-                ctx.lineTo(Math.round(15 + 30 * y + 11), Math.round(15 + 30 * x))
+                ctx.moveTo(Math.round(this.space + this.space * y - 11), Math.round(this.space + this.space * x))
+                ctx.lineTo(Math.round(this.space + this.space * y + 11), Math.round(this.space + this.space * x))
                 ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
             },
             // 绘制棋子
@@ -253,7 +260,7 @@
                 else
                     color = "black"
                 ctx.beginPath()
-                ctx.arc(Math.round(15 + 30 * y), Math.round(15 + 30 * x), 10, 0, 2 * Math.PI)
+                ctx.arc(Math.round(this.space + this.space * y), Math.round(this.space + this.space * x), this.chessSize, 0, 2 * Math.PI)
                 ctx.fillStyle = color
                 ctx.fill() // 填充路径
                 ctx.stroke() // 绘制路径 默认黑色线条
@@ -293,20 +300,24 @@
             },
             // 绘制棋盘
             drawBg() {
+                let tools = document.getElementsByClassName("tools")[0]
                 let c = document.getElementById("myCanvas")
+                c.width = Math.round(this.space * 16)
+                c.height = c.width
+                tools.style.width = c.width + "px"
                 ctx = c.getContext("2d")
                 ctx.beginPath()
                 ctx.fillStyle = this.bgColor[this.bgColorIndex]
-                ctx.fillRect(0, 0, 450, 450)
-                let t = 15
-                for (let i = 0; i < 15; i++) {
+                ctx.fillRect(0, 0, c.width, c.height)
+                let t = 15 // 棋盘行数
+                for (let i = 0; i < t; i++) {
                     ctx.beginPath()
                     ctx.strokeStyle = "#D6D1D1"
-                    ctx.moveTo(15, t + 30 * i)
-                    ctx.lineTo(435, t + 30 * i)
+                    ctx.moveTo(this.space, this.space + this.space * i)
+                    ctx.lineTo(c.width - this.space, this.space + this.space * i)
                     ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
-                    ctx.moveTo(t + 30 * i, 15)
-                    ctx.lineTo(t + 30 * i, 435)
+                    ctx.moveTo(this.space + this.space * i, this.space)
+                    ctx.lineTo(this.space + this.space * i, c.height - this.space)
                     ctx.stroke() // 绘制出mouveTo 到 lineTo 的线条
                 }
             }
