@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>飞机大战</title>
+    <style>
+        body {
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        body, div, ul, li, a, span, input, button, h3, p {
+            box-sizing: border-box;
+            /*设置元素的高宽是包括padding和margin的结果*/
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+<div class="container" id="app">
+    <h1 class="title">
+        飞机大战
+        {{now_date}}
+    </h1>
+    <canvas id="myCanvas"></canvas>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<script>
+    var ctx
+    var app = new Vue({
+        el: '#app',
+        data: {
+            now_date: new Date().toLocaleString()
+        },
+    })
+</script>
+</body>
+</html>

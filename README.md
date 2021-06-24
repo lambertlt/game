@@ -2,6 +2,10 @@
 
 这里面记录了我用：canvas+vue写的游戏项目
 
+- wzq.html 是五子棋
+- aircraft_war 是飞机大战  
+  涉及的图片资源aircraft_war_images
+
 
 echo "# game" >> README.md  
 git init  
