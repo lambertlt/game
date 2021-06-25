@@ -4,7 +4,9 @@
 
 - wzq.html 是五子棋
 - aircraft_war.html 是飞机大战  
-  涉及的图片资源`aircraft_war_images`
+  涉及的图片资源`aircraft_war_images`  
+  目前实现了有背景层、子弹层、飞机层、生命道具层  
+  实现的功能：我的飞机自由移动并发射子弹、还有暂停功能
 
 
 echo "# game" >> README.md  

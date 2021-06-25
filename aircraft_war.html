@@ -27,24 +27,285 @@
             flex-direction: column;
             align-items: center;
         }
+
+        .canvas_box {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .canvas_box canvas {
+            cursor: none;
+            position: absolute;
+            top: 0;
+            /*left: calc(100vw / 2 - 400px / 2);*/
+        }
     </style>
 </head>
 <body>
 <div class="container" id="app">
-    <h1 class="title">
-        飞机大战
-        {{now_date}}
-    </h1>
-    <canvas id="myCanvas"></canvas>
+    <div class="canvas_box">
+        <h1 class="title">
+            飞机大战
+            <div style="font-size: 12px;">{{now_date}}</div>
+        </h1>
+        <canvas id="background_canvas" :style="canvas_style"></canvas>
+        <canvas id="shell_canvas" :style="canvas_style"></canvas>
+        <!--        <canvas id="airplane_canvas" @mousedown.stop="handleClick($event)" :style="canvas_style"></canvas>-->
+        <canvas id="airplane_canvas" :style="canvas_style"></canvas>
+        <canvas id="airplane_life_canvas" :style="canvas_style" @mousemove.stop="handleClick($event)"></canvas>
+    </div>
+    <h3>当前状态：
+        <button @click="pause()">{{is_start ? "开始" : "暂停"}}</button>
+    </h3>
+    <h3>按下回车开始</h3>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
 <script>
-    var ctx
+    var ctx_bg
+    var ctx_airplane
+    var ctx_life
+
+    // 在这里写 class 类是因为 vue 的 this 污染了 class 的 this
+    // 定义出类方便管理个个实物的属性值
+    // 飞机类
+    class Plane {
+        constructor(img, x, y, size, life, power, is_protect) {
+            this.img = img // 飞机的图片资源
+            this.size = size // 飞机的规格
+            this.life = life // 飞机生命值
+            this.power = power // 飞机子弹造成的伤害
+            this.is_protect = is_protect // 飞机是否受到保护
+            if (size === "max") {
+                this.w = 80 // 飞机宽度
+                this.h = 80 // 飞机高度
+                this.x = Math.round(x - 80 / 2)  // x坐标
+                this.y = Math.round(y - 80 / 2) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+            }
+            if (size === "min") {
+                this.w = 50 // 飞机宽度
+                this.h = 50 // 飞机高度
+                this.x = Math.round(x - 50 / 2)  // x坐标
+                this.y = Math.round(y - 50 / 2) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+            }
+        }
+
+        // 移动
+        move(x, y) {
+            this.x = Math.round(x - this.w / 2)  // x坐标
+            this.y = Math.round(y - this.h / 2) // y坐标
+        }
+
+        // 当前飞机的信息
+        infomation() {
+            return {
+                img: this.img,
+                x: this.x,
+                y: this.y,
+                w: this.w,
+                h: this.h,
+                life: this.life,
+                power: this.power,
+                is_protect: this.is_protect,
+                size: this.size
+            }
+        }
+    }
+
+    // 炮弹类
+    class Shell {
+        constructor(img, x, y, size, order, speed, power) {
+            this.img = img // 子弹的图片资源
+            this.size = size // 子弹的规格
+            this.order = order // 谁发出的
+            this.speed = speed // 速度
+            this.power = power // 伤害
+            if (size === "max") {
+                this.w = 20 // 子弹宽度
+                this.h = 30 // 子弹高度
+                this.x = Math.round(x - 20 / 2)  // x坐标
+                this.y = Math.round(y - 30 / 2 - 25) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+            }
+            if (size === "min") {
+                this.w = 10 // 子弹宽度
+                this.h = 20 // 子弹高度
+                this.x = Math.round(x - 10 / 2)  // x坐标
+                this.y = Math.round(y - 20 / 2 - 10) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+            }
+        }
+
+        // 移动 每调用一次子弹位置更新一次向上挪动一次
+        move() {
+            this.x = Math.round(this.x)  // x坐标
+            this.y = Math.round(this.y - this.h / 2 - this.speed) // y坐标
+        }
+
+        // 当前子弹的信息
+        infomation() {
+            return {
+                img: this.img,
+                x: this.x,
+                y: this.y,
+                w: this.w,
+                h: this.h,
+                power: this.power,
+                order: this.order,
+                speed: this.speed,
+                size: this.size
+            }
+        }
+    }
+
     var app = new Vue({
         el: '#app',
         data: {
-            now_date: new Date().toLocaleString()
-        },
+            canvas_width: 360, //
+            canvas_height: document.body.clientHeight - 60, // canvas的高宽统一设定
+            now_date: new Date().toLocaleString(), // 当前时间
+            click: {x: 360 / 2, y: document.body.clientHeight - 100}, // 鼠标点击的相对棋盘坐标
+            client_width: document.body.clientWidth, // 可使用宽度
+            client_height: document.body.clientHeight, // 可使用高度
+            bg_starry_sky_array: ["./aircraft_war_images/starry_sky.jpg"], // 背景图片数组
+            bg_starry_sky_index: 0, // 当前选中的背景
+            plane_array: [], // 敌方飞机存放数组
+            plane_img_array: ["./aircraft_war_images/plane01.png"], // 战斗机图片数组
+            plane_img_index: 0, // 当前选中的战斗机
+            shell_array: [], // 子弹存放数组
+            shell_img_array: ["./aircraft_war_images/shell.png"], // 子弹图片数组
+            shell_img_index: 0, // 当前选中的子弹
+            canvas_style: {
+                left: "0px"
+            }, // 这是为canvas绑定的样式
+            my_plane: null,// 我方飞机
+            my_plane_array: [], // 我方飞机数组 包括以后要加的僚机功能
+            my_shell_array: [], // 我方子弹数组
+            is_start: 0, // 是否开始 默认暂停
+            update: null, // 存放更新数据的定时器ID
+        }, mounted() {
+            this.my_plane = new Plane(this.plane_img_array[this.plane_img_index], this.click.x, this.click.y, "max", 10, 1, 1)
+            this.nowDate()
+            this.canvas_bg_init()
+            this.canvas_air_init()
+            this.keyDown()
+        }, watch: {
+            is_start() {
+                if (this.is_start) {
+                    this.update_data()
+                } else {
+                    clearTimeout(this.update)
+                }
+            }
+        }, methods: {
+            // 更新时间
+            nowDate() {
+                this.now_date = new Date().toLocaleString()
+                setTimeout(this.nowDate, 1000)
+            },
+            // 修改游戏状态
+            pause() {
+                this.is_start = !this.is_start // 游戏暂停
+            },
+            // 全局绑定键盘监测
+            keyDown() {
+                let _this = this
+                window.onkeydown = function (event) {
+                    switch (event.keyCode) {
+                        case 13:
+                            _this.is_start = !_this.is_start // 游戏暂停
+                            break;
+                    }
+                }
+            },
+            // 更新实例数据
+            update_data() {
+                this.my_plane.move(this.click.x, this.click.y)
+                // 当为真 战斗机发射子弹 在此实例化子弹并添加到子弹数组
+                let shell = new Shell(this.shell_img_array[this.shell_img_index], this.click.x, this.click.y, "max", "my", 20, 1)
+                // 通过遍历把子弹数组内的元素统统移动一次
+                this.shell_array.forEach((i, index) => {
+                    i.move()// 子弹移动一次
+                    if (i.infomation().y <= -10) {
+                        this.shell_array.splice(index, 1)
+                    }
+                })
+                this.shell_array.push(shell)
+                this.canvas_air_init()
+                this.update = setTimeout(this.update_data, 20)
+                // 当为假 战斗机停止发射子弹
+            },
+            handleClick(event) {
+                // $event是指当前触发的是什么事件（鼠标事件，键盘事件等）
+                // $event.target则指的是事件触发的目标，即哪一个元素触发了事件，这将直接获取该dom元素
+                // x 为当前鼠标点击坐标，event.target.offsetTop为当前棋盘距离窗口左侧距离，相减得出 鼠标点击位置相对棋盘的x、y坐标
+                this.click.x = Math.round(event.x - event.target.offsetLeft)
+                this.click.y = Math.round(event.y - event.target.offsetTop)
+            },
+            canvas_air_init() {
+                let _this = this
+                // 空中层 飞机
+                let c = document.getElementById("airplane_canvas")
+                c.width = this.canvas_width
+                c.height = this.canvas_height
+                ctx_airplane = c.getContext("2d")
+                // 空中层 子弹
+                let d = document.getElementById("shell_canvas")
+                d.width = this.canvas_width
+                d.height = this.canvas_height
+                ctx_shell = d.getContext("2d")
+
+                // airplane_life_canvas
+                let e = document.getElementById("airplane_life_canvas")
+                e.width = this.canvas_width
+                e.height = this.canvas_height
+                ctx_life = e.getContext("2d")
+                this.canvas_style.left = Math.round(Math.round(document.body.clientWidth / 2) - this.canvas_width / 2) + "px" // 为两个canvas图层 的位置设定居中
+                // this.update_data() // 调用此方法在执行前更新数据
+                // 绘制我的飞机
+                this.load_img(this.my_plane.img, this.my_plane.x, this.my_plane.y, this.my_plane.w, this.my_plane.h, ctx_airplane)
+                // 如果子弹数组不为空则绘制子弹
+                if (this.shell_array.length > 0) {
+                    this.shell_array.forEach((i, index) => {
+                        this.load_img(i.img, i.x, i.y, i.w, i.h, ctx_shell)
+                    })
+                }
+            },
+            // canvas的初始化: 背景图、我方战机、子弹
+            canvas_bg_init() {
+                // 背景层
+                let c = document.getElementById("background_canvas")
+                c.width = this.canvas_width
+                c.height = this.canvas_height // 设置 canvas 高宽
+                ctx_bg = c.getContext("2d") // 初始化一个2d笔
+                this.load_img(this.bg_starry_sky_array[this.bg_starry_sky_index], 0, 0, c.width, c.height, ctx_bg)
+            },
+            //用于加载图片并直接渲染到页面
+            // load_img(src, sx, sy, sw, sh, x, y, w, h, ctx) {
+            // src 图片、sx开始裁剪的x坐标、sy开始裁剪的y坐标、sw被裁减图片的高度、sh被裁减图片的宽度、x放置x坐标、y放置y坐标、w放置图像的宽度设定、h放置图片的高度设定、ctx为容器
+            // 这是默认的不做任何图片处理
+            load_img(src, x, y, w, h, ctx) {
+                let _this = this
+                let img = new Image()
+                img.src = src
+                if (img.complete) {
+                    // let bg = new this.drawImage_lb(img, x, y, w, h, ctx)
+                    // bg.set()
+                    _this.drawImage_lb(img, x, y, w, h, ctx)
+                } else {
+                    img.onload = function () {
+                        // let bg = new this.drawImage_lb(img, x, y, w, h, ctx)
+                        // bg.set()
+                        _this.drawImage_lb(img, x, y, w, h, ctx)
+                    }
+                }
+            },
+            // 我封装好的绘制图片对象
+            drawImage_lb(img, x, y, w, h, ctx) {
+                ctx.drawImage(img, x, y, w, h)
+            },
+            canvas_save() {
+
+            }
+        }
     })
 </script>
 </body>
