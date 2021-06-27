@@ -114,31 +114,44 @@
 
     // 炮弹类
     class Shell {
-        constructor(img, x, y, size, order, speed, power) {
+        constructor(img, x, y, size, order, speed, power, relative_x) {
             this.img = img // 子弹的图片资源
             this.size = size // 子弹的规格
             this.order = order // 谁发出的
             this.speed = speed // 速度
             this.power = power // 伤害
+            this.relative_x = relative_x // 子弹的相对战机x轴位置
+            this.path = '' // 子弹运动路径
+            this.angled = 0 // 子弹偏移度
             if (size === "max") {
                 this.w = 20 // 子弹宽度
                 this.h = 30 // 子弹高度
-                this.x = Math.round(x - 20 / 2)  // x坐标
-                this.y = Math.round(y - 30 / 2 - 25) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+                this.x = Math.round(x - 20 / 2 + this.relative_x)  // x坐标(这是加了相对位置，后面的每次移动都是基于此)
+                this.y = Math.round(y - 30 / 2 - 50) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
             }
             if (size === "min") {
                 this.w = 10 // 子弹宽度
                 this.h = 20 // 子弹高度
-                this.x = Math.round(x - 10 / 2)  // x坐标
-                this.y = Math.round(y - 20 / 2 - 10) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
+                this.x = Math.round(x - 20 / 2 + this.relative_x)  // x坐标(这是加了相对位置，后面的每次移动都是基于此)
+                this.y = Math.round(y - 20 / 2 - 35) // y坐标 由于对canvas元素使用了绝对定位 top = 0，所以本身元素距离顶部的距离归零了，但实际鼠标点击位置与理论值差100
             }
         }
 
         // 移动 每调用一次子弹位置更新一次向上挪动一次
-        move() {
-            this.x = Math.round(this.x)  // x坐标
-            this.y = Math.round(this.y - this.h / 2 - this.speed) // y坐标
+        // 直线发射子弹line（横坐标不变，纵坐标等差增加）：子弹下一次位置计算公式 y(子弹纵坐标) - h(子弹高度) / 2 - speed(子弹速度)
+        // 带角度发出子弹angled（横坐标等差增加，纵坐标等差增加）：子弹下一次位置计算公式 x(子弹横坐标) - w(子弹宽度) / 2 - speed(子弹速度)
+        move(path, angled) {
+            this.path = path // 子弹运动轨迹
+            this.angled = angled // 子弹偏移度
+            if (this.path === "line") {
+                this.x = Math.round(this.x)  // x坐标
+                this.y = Math.round(this.y - this.h / 2 - this.speed) // y坐标
+            } else if (this.path === "angled") {
+                this.x = Math.round((this.x - this.w / 2 - this.angled) * 100) / 100  // x坐标
+                this.y = Math.round(this.y - this.h / 2 - this.speed) // y坐标
+            }
         }
+
 
         // 当前子弹的信息
         infomation() {
@@ -167,26 +180,31 @@
             client_height: document.body.clientHeight, // 可使用高度
             bg_starry_sky_array: ["./aircraft_war_images/starry_sky.jpg"], // 背景图片数组
             bg_starry_sky_index: 0, // 当前选中的背景
-            plane_array: [], // 敌方飞机存放数组
-            plane_img_array: ["./aircraft_war_images/plane01.png"], // 战斗机图片数组
-            plane_img_index: 0, // 当前选中的战斗机
             shell_array: [], // 子弹存放数组
             shell_img_array: ["./aircraft_war_images/shell.png"], // 子弹图片数组
             shell_img_index: 0, // 当前选中的子弹
+            enemy_plane_array: [], // 敌方飞机存放数组
+            enemy_plane_img_array: ["./aircraft_war_images/enemy_plane01.png"], // 敌机图片数组
+            enemy_plane_img_index: 0, // 当前选中的敌机图片
+            my_plane: null,// 我方飞机
+            my_plane_img_array: ["./aircraft_war_images/my_plane01.png"], // 我方飞机图片数组
+            my_plane_img_index: 0, // 当前选中的我方飞机图片
+            my_plane_array: [], // 我方飞机数组 包括以后要加的僚机功能
+            my_shell_array: [], // 我方子弹数组
             canvas_style: {
                 left: "0px"
             }, // 这是为canvas绑定的样式
-            my_plane: null,// 我方飞机
-            my_plane_array: [], // 我方飞机数组 包括以后要加的僚机功能
-            my_shell_array: [], // 我方子弹数组
             is_start: 0, // 是否开始 默认暂停
             update: null, // 存放更新数据的定时器ID
+            defeat_plane_count: 0, // 击败的敌机数量
+            play_time: 0, // 游戏时长
         }, mounted() {
-            this.my_plane = new Plane(this.plane_img_array[this.plane_img_index], this.click.x, this.click.y, "max", 10, 1, 1)
+            this.my_plane = new Plane(this.my_plane_img_array[this.my_plane_img_index], this.click.x, this.click.y, "max", 10, 1, 1)
             this.nowDate()
             this.canvas_bg_init()
             this.canvas_air_init()
             this.keyDown()
+            this.enemy_plane()
         }, watch: {
             is_start() {
                 if (this.is_start) {
@@ -196,9 +214,15 @@
                 }
             }
         }, methods: {
+            enemy_plane() {
+                let enemy_plane = new Plane(this.enemy_plane_img_array[this.enemy_plane_img_index], this.canvas_width / 2, 60, "max", 20, 5, 0)
+                this.enemy_plane_array.push(enemy_plane)
+                this.load_img(enemy_plane.img, enemy_plane.x, enemy_plane.y, enemy_plane.w, enemy_plane.h, ctx_airplane)
+            },
             // 更新时间
             nowDate() {
                 this.now_date = new Date().toLocaleString()
+                this.play_time++  // 更新游戏的时常
                 setTimeout(this.nowDate, 1000)
             },
             // 修改游戏状态
@@ -220,18 +244,20 @@
             update_data() {
                 this.my_plane.move(this.click.x, this.click.y)
                 // 当为真 战斗机发射子弹 在此实例化子弹并添加到子弹数组
-                let shell = new Shell(this.shell_img_array[this.shell_img_index], this.click.x, this.click.y, "max", "my", 20, 1)
+                let shell1 = new Shell(this.shell_img_array[this.shell_img_index], this.click.x, this.click.y, "max", "my", 20, 1, 0)
+                // let shell2 = new Shell(this.shell_img_array[this.shell_img_index], this.click.x, this.click.y, "max", "my", 20, 1, 20)
+                // let shell3 = new Shell(this.shell_img_array[this.shell_img_index], this.click.x, this.click.y, "max", "my", 20, 1, -20)
                 // 通过遍历把子弹数组内的元素统统移动一次
                 this.shell_array.forEach((i, index) => {
-                    i.move()// 子弹移动一次
-                    if (i.infomation().y <= -10) {
+                    // i.move("angled", 0.2)// 子弹移动一次
+                    i.move("line", 0)// 子弹移动一次
+                    if (i.infomation().y <= -10 || i.infomation().x >= this.canvas_width + 10 || i.infomation().x <= -10) {
                         this.shell_array.splice(index, 1)
                     }
                 })
-                this.shell_array.push(shell)
+                this.shell_array.push(shell1)
                 this.canvas_air_init()
-                this.update = setTimeout(this.update_data, 20)
-                // 当为假 战斗机停止发射子弹
+                this.update = setTimeout(this.update_data, 10)
             },
             handleClick(event) {
                 // $event是指当前触发的是什么事件（鼠标事件，键盘事件等）
@@ -258,10 +284,13 @@
                 e.width = this.canvas_width
                 e.height = this.canvas_height
                 ctx_life = e.getContext("2d")
+
                 this.canvas_style.left = Math.round(Math.round(document.body.clientWidth / 2) - this.canvas_width / 2) + "px" // 为两个canvas图层 的位置设定居中
                 // this.update_data() // 调用此方法在执行前更新数据
+
                 // 绘制我的飞机
                 this.load_img(this.my_plane.img, this.my_plane.x, this.my_plane.y, this.my_plane.w, this.my_plane.h, ctx_airplane)
+
                 // 如果子弹数组不为空则绘制子弹
                 if (this.shell_array.length > 0) {
                     this.shell_array.forEach((i, index) => {
